@@ -111,11 +111,9 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 				// value, the string literal "null" must be coerced to a `nil`
 				if defaultValue == "null" {
 					defaultValue = nil
+				} else {
+					return nil, fmt.Errorf("unions with non null default values are not supported")
 				}
-				// NOTE: To support record field default values, union schema
-				// set to the type name of first member
-				// TODO: change to schemaCanonical below
-				defaultValue = Union(fieldCodec.schemaOriginal, defaultValue)
 			default:
 				debug("fieldName: %q; type: %q; defaultValue: %T(%#v)\n", fieldName, c.typeName, defaultValue, defaultValue)
 			}

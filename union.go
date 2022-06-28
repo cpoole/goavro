@@ -27,33 +27,6 @@ type codecInfo struct {
 	indexFromName  map[string]int
 }
 
-// Union wraps a datum value in a map for encoding as a Union, as required by
-// Union encoder.
-//
-// When providing a value for an Avro union, the encoder will accept `nil` for a
-// `null` value. If the value is non-`nil`, it must be a
-// `map[string]interface{}` with a single key-value pair, where the key is the
-// Avro type name and the value is the datum's value. As a convenience, the
-// `Union` function wraps any datum value in a map as specified above.
-//
-//     func ExampleUnion() {
-//        codec, err := goavro.NewCodec(`["null","string","int"]`)
-//        if err != nil {
-//            fmt.Println(err)
-//        }
-//        buf, err := codec.TextualFromNative(nil, goavro.Union("string", "some string"))
-//        if err != nil {
-//            fmt.Println(err)
-//        }
-//        fmt.Println(string(buf))
-//        // Output: {"string":"some string"}
-//     }
-func Union(name string, datum interface{}) interface{} {
-	if datum == nil && name == "null" {
-		return nil
-	}
-	return map[string]interface{}{name: datum}
-}
 
 // makeCodecInfo takes the schema array
 // and builds some lookup indices
@@ -94,6 +67,10 @@ func nativeFromBinary(cr *codecInfo) func(buf []byte) (interface{}, []byte, erro
 		var decoded interface{}
 		var err error
 
+		if len(cr.allowedTypes) != 2 {
+			return nil, nil, fmt.Errorf("only null and one other type allowed in union")
+		}
+
 		decoded, buf, err = longNativeFromBinary(buf)
 		if err != nil {
 			return nil, nil, err
@@ -108,15 +85,10 @@ func nativeFromBinary(cr *codecInfo) func(buf []byte) (interface{}, []byte, erro
 			return nil, nil, fmt.Errorf("cannot decode binary union item %d: %s", index+1, err)
 		}
 		if decoded == nil {
-			// do not wrap a nil value in a map
 			return nil, buf, nil
 		}
-		// Single value union values are returned as a pointer type. Multi value non-nil
-		// union values are wrapped in a map with single key set to type name of value
-		if len(cr.allowedTypes) == 2 {
-			return decoded, buf, nil
-		} 
-		return Union(cr.allowedTypes[index], decoded), buf, nil
+		// Single value union values are returned as a pointer type
+		return decoded, buf, nil
 	}
 }
 func binaryFromNative(cr *codecInfo) func(buf []byte, datum interface{}) ([]byte, error) {
@@ -156,16 +128,21 @@ func binaryFromNative(cr *codecInfo) func(buf []byte, datum interface{}) ([]byte
 				return longBinaryFromNative(buf, index)
 			}
 
-			val := datum.(*string)
+			//val := datum.(*string)
 
-			typeStr := reflect.TypeOf(v).Elem().Name()
+			elem := reflect.TypeOf(v).Elem()
+			typeStr := ""
+			if elem.PkgPath() != "" {
+				typeStr = fmt.Sprintf("%s.", elem.PkgPath())
+			}
+			typeStr = fmt.Sprintf("%s%s", typeStr, elem.Name())
 			index, ok := cr.indexFromName[typeStr]
 			if !ok {
 				return nil, fmt.Errorf("cannot encode binary union: no member schema types support datum: allowed types: %v; received: %T", cr.allowedTypes, datum)
 			}
 			c := cr.codecFromIndex[index]
 			buf, _ = longBinaryFromNative(buf, index)
-			return c.binaryFromNative(buf, *val)
+			return c.binaryFromNative(buf, datum)
 		}
 		return nil, fmt.Errorf("cannot encode binary union: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", cr.allowedTypes, datum)
 	}
@@ -259,8 +236,12 @@ func textualFromNative(cr *codecInfo) func(buf []byte, datum interface{}) ([]byt
 	}
 }
 func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace string, schemaArray []interface{}, cb *codecBuilder) (*Codec, error) {
-	if len(schemaArray) == 0 {
-		return nil, errors.New("Union ought to have one or more members")
+	if len(schemaArray) != 2 {
+		return nil, errors.New("this compiler only supports unions with exactly two members")
+	}
+
+	if schemaArray[0] != "null" {
+		return nil, errors.New("this compiler only supports unions with null as the default")
 	}
 
 	cr, err := makeCodecInfo(st, enclosingNamespace, schemaArray, cb)

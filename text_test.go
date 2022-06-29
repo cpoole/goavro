@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 )
 
@@ -98,6 +99,13 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 		isString  = iota
 	)
 
+	var dereferenced interface{}
+	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
+		dereferenced = reflect.ValueOf(datum).Elem().Interface()
+	} else {
+		dereferenced = datum
+	}
+
 	var datumType int
 	var datumInt int64
 	var datumFloat32 float32
@@ -105,7 +113,7 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 	var datumMap map[string]interface{}
 	var datumSlice []interface{}
 	var datumString string
-	switch v := datum.(type) {
+	switch v := dereferenced.(type) {
 	case float64:
 		datumFloat64 = v
 		datumType = isFloat64

@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 )
 
@@ -104,7 +105,24 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 
 	// for testing purposes, to prevent big switch statement, convert each to
 	// string and compare.
-	if actual, expected := fmt.Sprintf("%v", value), fmt.Sprintf("%v", datum); actual != expected {
+	dereferenced := datum
+	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
+		if reflect.ValueOf(datum).IsNil() {
+			dereferenced = nil
+		} else {
+			dereferenced = reflect.ValueOf(datum).Elem().Interface()
+		}
+	}
+
+	actual := fmt.Sprintf("%v", value)
+	expected := fmt.Sprintf("%v", dereferenced)
+
+	enumType, ok := dereferenced.(avroEnum)
+	if ok {
+		expected = enumType.Str()
+	}
+
+	if actual != expected {
 		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 }

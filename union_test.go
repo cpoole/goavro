@@ -12,8 +12,6 @@ package goavro
 import (
 	"bytes"
 	"fmt"
-	"math"
-	"strconv"
 	"testing"
 )
 
@@ -22,21 +20,32 @@ func TestSchemaUnion(t *testing.T) {
 	testSchemaInvalid(t, `[{"type":"enum","name":"com.example.one","symbols":["red","green","blue"]},{"type":"enum","name":"one","namespace":"com.example","symbols":["dog","cat"]}]`, "Union item 2 ought to be unique type")
 }
 
+type colors struct {
+	val string
+}
+
+func (c colors) Str() string {
+	return c.val
+}
+
 func TestUnion(t *testing.T) {
 	testBinaryCodecPass(t, `["null","int"]`, nil, []byte("\x00"))
+
+	// test null pointers
 	var ptrInt *int
-	testBinaryCodecPass(t, `["int","null"]`, ptrInt, []byte("\x02"))
+	testBinaryCodecPass(t, `["null","int"]`, ptrInt, []byte("\x00"))
 
-	//testBinaryCodecPass(t, `["null","int"]`, Union("int", 3), []byte("\x02\x06"))
-	//testBinaryCodecPass(t, `["null","long"]`, Union("long", 3), []byte("\x02\x06"))
+	var three = 3
+	ptrInt = &three
+	testBinaryCodecPass(t, `["null","int"]`, ptrInt, []byte("\x02\x06"))
 
-	//testBinaryCodecPass(t, `["int","null"]`, Union("int", 3), []byte("\x00\x06"))
-	//testBinaryEncodePass(t, `["int","null"]`, Union("int", 3), []byte("\x00\x06")) // can encode a bare 3
+	testBinaryCodecPass(t, `["null","long"]`, ptrInt, []byte("\x02\x06"))
 
-	//testBinaryEncodeFail(t, `[{"type":"enum","name":"colors","symbols":["red","green","blue"]},{"type":"enum","name":"animals","symbols":["dog","cat"]}]`, Union("colors", "bravo"), "value ought to be member of symbols")
-	//testBinaryEncodeFail(t, `[{"type":"enum","name":"colors","symbols":["red","green","blue"]},{"type":"enum","name":"animals","symbols":["dog","cat"]}]`, Union("animals", "bravo"), "value ought to be member of symbols")
-	//testBinaryCodecPass(t, `[{"type":"enum","name":"colors","symbols":["red","green","blue"]},{"type":"enum","name":"animals","symbols":["dog","cat"]}]`, Union("colors", "green"), []byte{0, 2})
-	//testBinaryCodecPass(t, `[{"type":"enum","name":"colors","symbols":["red","green","blue"]},{"type":"enum","name":"animals","symbols":["dog","cat"]}]`, Union("animals", "cat"), []byte{2, 2})
+	colorEnum := &colors{"green"}
+	testBinaryCodecPass(t, `["null", {"type":"enum","name":"colors","symbols":["red","green","blue"]}]`, colorEnum, []byte("\x02\x02"))
+
+	colorEnum = &colors{"brown"}
+	testBinaryEncodeFail(t, `["null", {"type":"enum","name":"colors","symbols":["red","green","blue"]}]`, colorEnum, "cannot encode binary enum \"colors\": value ought to be member of symbols: [red green blue]; \"brown\"")
 }
 
 func TestUnionRejectInvalidType(t *testing.T) {
@@ -153,80 +162,20 @@ func TestUnionRecordFieldWhenNull(t *testing.T) {
 }
 
 func TestUnionText(t *testing.T) {
-	//testTextEncodeFail(t, `["null","int"]`, Union("null", 3), "expected")
-	//testTextCodecPass(t, `["null","int"]`, Union("null", nil), []byte("null"))
-	//testTextCodecPass(t, `["null","int"]`, Union("int", 3), []byte(`{"int":3}`))
+	//testTextEncodeFail(t, `["null","int"]`, &val, "expected")
+	testTextCodecPass(t, `["null","int"]`, nil, []byte("null"))
+	val := 3
+	testTextCodecPass(t, `["null","int"]`, &val, []byte(`{"int":3}`))
 	//testTextCodecPass(t, `["null","int","string"]`, Union("string", "😂 "), []byte(`{"string":"\u0001\uD83D\uDE02 "}`))
 }
 
-func ExampleUnion() {
-	codec, err := NewCodec(`["null","string","int"]`)
-	if err != nil {
-		fmt.Println(err)
-	}
-	buf, err := codec.TextualFromNative(nil, "some string")
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(string(buf))
-	// Output: {"string":"some string"}
-}
-
-func ExampleUnion3() {
-	// Imagine a record field with the following union type. I have seen this
-	// sort of type in many schemas. I have been told the reasoning behind it is
-	// when the writer desires to encode data to JSON that cannot be written as
-	// a JSON number, then to encode it as a string and allow the reader to
-	// parse the string accordingly.
-	codec, err := NewCodec(`["null","double","string"]`)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	native, _, err := codec.NativeFromTextual([]byte(`{"string":"NaN"}`))
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	value := math.NaN()
-	if native == nil {
-		fmt.Print("decoded null: ")
-	} else {
-		for k, v := range native.(map[string]interface{}) {
-			switch k {
-			case "double":
-				fmt.Print("decoded double: ")
-				value = v.(float64)
-			case "string":
-				fmt.Print("decoded string: ")
-				s := v.(string)
-				switch s {
-				case "NaN":
-					value = math.NaN()
-				case "+Infinity":
-					value = math.Inf(1)
-				case "-Infinity":
-					value = math.Inf(-1)
-				default:
-					var err error
-					value, err = strconv.ParseFloat(s, 64)
-					if err != nil {
-						fmt.Println(err)
-					}
-				}
-			}
-		}
-	}
-	fmt.Println(value)
-	// Output: decoded string: NaN
-}
-
 func ExampleJSONUnion() {
-	codec, err := NewCodec(`["null","string","int"]`)
+	codec, err := NewCodec(`["null","string"]`)
 	if err != nil {
 		fmt.Println(err)
 	}
-	buf, err := codec.TextualFromNative(nil, "some string")
+	val := "some string"
+	buf, err := codec.TextualFromNative(nil, &val)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -260,7 +209,7 @@ func ExampleCustomCodec() {
 
 // Use the standard JSON codec instead
 func ExampleJSONStringToTextual() {
-	codec, err := NewCodecFrom(`["null","string","int"]`, &codecBuilder{
+	codec, err := NewCodecFrom(`["null","string"]`, &codecBuilder{
 		buildCodecForTypeDescribedByMap,
 		buildCodecForTypeDescribedByString,
 		buildCodecForTypeDescribedBySliceJSON,
@@ -268,7 +217,9 @@ func ExampleJSONStringToTextual() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	buf, err := codec.TextualFromNative(nil, "some string")
+
+	val := "some string"
+	buf, err := codec.TextualFromNative(nil, &val)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -277,7 +228,7 @@ func ExampleJSONStringToTextual() {
 }
 
 func ExampleJSONStringToNative() {
-	codec, err := NewCodecFrom(`["null","string","int"]`, &codecBuilder{
+	codec, err := NewCodecFrom(`["null","string"]`, &codecBuilder{
 		buildCodecForTypeDescribedByMap,
 		buildCodecForTypeDescribedByString,
 		buildCodecForTypeDescribedBySliceJSON,

@@ -12,6 +12,7 @@ package goavro
 import (
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 )
 
@@ -104,6 +105,22 @@ func longBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 		if value = int64(v); float32(value) != v {
 			return nil, fmt.Errorf("cannot encode binary long: provided Go float32 would lose precision: %f", v)
 		}
+	case uint:
+		if value > math.MaxInt32 {
+			return nil, fmt.Errorf("cannot encode binary long: uint would overflow")
+		}
+		value = int64(v)
+	case uint64:
+		if v > math.MaxInt32 {
+			return nil, fmt.Errorf("cannot encode binary long: uint would overflow")
+		}
+		value = int64(v)
+	case uint8:
+		value = int64(v)
+	case uint16:
+		value = int64(v)
+	case uint32:
+		value = int64(v)
 	default:
 		return nil, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
 	}

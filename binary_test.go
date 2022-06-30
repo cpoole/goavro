@@ -11,10 +11,13 @@ package goavro
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
 	"testing"
+
+	"github.com/mohae/deepcopy"
 )
 
 var morePositiveThanMaxBlockCount, morePositiveThanMaxBlockSize, moreNegativeThanMaxBlockCount, mostNegativeBlockCount []byte
@@ -103,27 +106,45 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 
-	// for testing purposes, to prevent big switch statement, convert each to
-	// string and compare.
-	dereferenced := datum
-	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
-		if reflect.ValueOf(datum).IsNil() {
-			dereferenced = nil
-		} else {
-			dereferenced = reflect.ValueOf(datum).Elem().Interface()
-		}
-	}
+	datumCopy := deepcopy.Copy(datum)
 
 	actual := fmt.Sprintf("%v", value)
-	expected := fmt.Sprintf("%v", dereferenced)
 
-	enumType, ok := dereferenced.(avroEnum)
+	var concreteDatum interface{}
+
+	if datumCopy == nil {
+		concreteDatum = nil
+	} else if reflect.TypeOf(datumCopy).Kind() == reflect.Ptr {
+		if reflect.ValueOf(datumCopy).IsNil() {
+			concreteDatum = nil
+		} else {
+			concreteDatum = reflect.Indirect(reflect.ValueOf(datumCopy)).Interface()
+		}
+	} else {
+		concreteDatum = reflect.Indirect(reflect.ValueOf(datumCopy)).Interface()
+	}
+
+	expected := fmt.Sprintf("%v", concreteDatum)
+
+	enumType, ok := concreteDatum.(avroEnum)
 	if ok {
 		expected = enumType.Str()
 	}
 
 	if actual != expected {
-		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+		expectedBytes, err := json.Marshal(concreteDatum)
+		if err != nil {
+			t.Error(err)
+		}
+
+		actualBytes, err := json.Marshal(value)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !bytes.Equal(actualBytes, expectedBytes) {
+			t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, concreteDatum, actual, expected)
+		}
 	}
 }
 

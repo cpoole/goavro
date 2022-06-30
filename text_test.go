@@ -99,13 +99,6 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 		isString  = iota
 	)
 
-	var dereferenced interface{}
-	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
-		dereferenced = reflect.ValueOf(datum).Elem().Interface()
-	} else {
-		dereferenced = datum
-	}
-
 	var datumType int
 	var datumInt int64
 	var datumFloat32 float32
@@ -113,31 +106,40 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 	var datumMap map[string]interface{}
 	var datumSlice []interface{}
 	var datumString string
-	switch v := dereferenced.(type) {
-	case float64:
-		datumFloat64 = v
-		datumType = isFloat64
-	case float32:
-		datumFloat32 = v
-		datumType = isFloat32
-	case int:
-		datumInt = int64(v)
-		datumType = isInt
-	case int32:
-		datumInt = int64(v)
-		datumType = isInt
-	case int64:
-		datumInt = v
-		datumType = isInt
-	case string:
-		datumString = v
-		datumType = isString
-	case []interface{}:
-		datumSlice = v
-		datumType = isSlice
-	case map[string]interface{}:
-		datumMap = v
+	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
+		dereferenced := reflect.ValueOf(datum).Elem().Interface()
+		typeStr := reflect.TypeOf(dereferenced).String()
 		datumType = isMap
+		datumMap = map[string]interface{}{
+			typeStr: dereferenced,
+		}
+	} else {
+		switch v := datum.(type) {
+		case float64:
+			datumFloat64 = v
+			datumType = isFloat64
+		case float32:
+			datumFloat32 = v
+			datumType = isFloat32
+		case int:
+			datumInt = int64(v)
+			datumType = isInt
+		case int32:
+			datumInt = int64(v)
+			datumType = isInt
+		case int64:
+			datumInt = v
+			datumType = isInt
+		case string:
+			datumString = v
+			datumType = isString
+		case []interface{}:
+			datumSlice = v
+			datumType = isSlice
+		case map[string]interface{}:
+			datumMap = v
+			datumType = isMap
+		}
 	}
 
 	var decodedType int
@@ -207,7 +209,16 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 			t.Fatalf("map comparison: length mismatch; Actual: %v; Expected: %v", actual, expected)
 		}
 		for key, datumValue := range datumMap {
-			decodedValue, ok := decodedMap[key]
+			decodedLookupKey := key
+			if key == "int" && datumValue.(int) > math.MaxInt32 {
+				decodedLookupKey = "long"
+			} else if (key == "float64") {
+				decodedLookupKey = "float"
+			} else if (key == "double") {
+				decodedLookupKey = "float64"
+			}
+
+			decodedValue, ok := decodedMap[decodedLookupKey]
 			if !ok {
 				t.Fatalf("map comparison: decoded missing key: %q: Actual: %v; Expected: %v", key, decodedMap, datumMap)
 			}

@@ -120,19 +120,11 @@ func binaryFromNative(cr *codecInfo) func(buf []byte, datum interface{}) ([]byte
 				return longBinaryFromNative(buf, index)
 			}
 
-			//elem := reflect.TypeOf(v).Elem()
-			//typeStr := ""
-			//if elem.PkgPath() != "" {
-			//	typeStr = fmt.Sprintf("%s.", elem.PkgPath())
-			//}
-			//typeStr = fmt.Sprintf("%s%s", typeStr, elem.Name())
 			c := cr.codecFromIndex[1]
 			buf, _ = longBinaryFromNative(buf, 1)
-			// datum is a pointer so deref it
 
 			return c.binaryFromNative(buf, rVal.Elem().Interface())
 		}
-		return nil, fmt.Errorf("cannot encode binary union: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", cr.allowedTypes, datum)
 	}
 }
 func nativeFromTextual(cr *codecInfo) func(buf []byte) (interface{}, []byte, error) {

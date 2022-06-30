@@ -71,7 +71,6 @@ func bytesBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 }
 
 func stringBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
-
 	var someBytes []byte
 	switch d := datum.(type) {
 	case []byte:
@@ -79,10 +78,12 @@ func stringBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	case string:
 		someBytes = []byte(d)
 	default:
-		if reflect.ValueOf(datum).Type().Kind() != reflect.Struct {
+		if reflect.ValueOf(datum).Type().Kind() == reflect.Ptr {
 			//this is a pointer type
-			val := datum.(*string)
-			someBytes = []byte(*val)
+			unwrapped := reflect.Indirect(reflect.ValueOf(datum)).Interface()
+			stringBinaryFromNative(buf, unwrapped)
+		} else {
+			return nil, fmt.Errorf("cannot encode binary string: expected: []byte or string; received: %T", datum)
 		}
 	}
 	buf, _ = longBinaryFromNative(buf, len(someBytes)) // only fails when given non integer

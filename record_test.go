@@ -393,17 +393,7 @@ func TestRecordFieldDefaultValue(t *testing.T) {
 }
 
 func TestRecordFieldUnionDefaultValue(t *testing.T) {
-	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":["int","null"],"default":13}]}`)
 	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":["null","int"],"default":null}]}`)
-}
-
-func TestRecordFieldUnionInvalidDefaultValue(t *testing.T) {
-	testSchemaInvalid(t,
-		`{"type":"record","name":"r1","fields":[{"name":"f1","type":["null","int"],"default":13}]}`,
-		"default value ought to encode using field schema")
-	testSchemaInvalid(t,
-		`{"type":"record","name":"r1","fields":[{"name":"f1","type":["int","null"],"default":null}]}`,
-		"default value ought to encode using field schema")
 }
 
 func TestRecordRecursiveRoundTrip(t *testing.T) {
@@ -508,9 +498,9 @@ func ExampleBinaryFromNative() {
 
 	// Convert native Go form to binary Avro data
 	binary, err := codec.BinaryFromNative(nil, map[string]interface{}{
-		"next": map[string]interface{}{
+		"next": &map[string]interface{}{
 			"LongList": map[string]interface{}{
-				"next": map[string]interface{}{
+				"next": &map[string]interface{}{
 					"LongList": map[string]interface{}{
 						// NOTE: May omit fields when using default value
 					},

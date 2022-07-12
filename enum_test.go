@@ -62,6 +62,18 @@ func TestEnumTextCodec(t *testing.T) {
 	testTextDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte(`"charlie"`), `cannot decode textual enum "e1": value ought to be member of symbols`)
 }
 
+type FooBarEvent struct {
+	val string
+}
+
+func (e FooBarEvent) Str() string {
+	return e.val
+}
+
+func (e FooBarEvent) DeepCopy() interface{} {
+	return &FooBarEvent{e.val}
+}
+
 func TestGH233(t *testing.T) {
 	// here's the fail case
 	// testTextCodecPass(t, `{"type":"record","name":"FooBar","namespace":"com.foo.bar","fields":[{"name":"event","type":["null",{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}]}]}`, map[string]interface{}{"event": Union("FooBarEvent", "CREATED")}, []byte(`{"event":{"FooBarEvent":"CREATED"}}`))
@@ -69,13 +81,14 @@ func TestGH233(t *testing.T) {
 	//testTextCodecPass(t, `{"type":"record","name":"FooBar","fields":[{"name":"event","type":["null",{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}]}]}`, map[string]interface{}{"event": Union("FooBarEvent", "CREATED")}, []byte(`{"event":{"FooBarEvent":"CREATED"}}`))
 	// experiments
 	// the basic enum
-	testTextCodecPass(t, `{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}`, "CREATED", []byte(`"CREATED"`))
+	createdEnum := FooBarEvent{"CREATED"}
+	testTextCodecPass(t, `{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}`, createdEnum, []byte(`"CREATED"`))
 	// the basic enum with namespace
-	testTextCodecPass(t, `{"type":"enum","name":"FooBarEvent","namespace":"com.foo.bar","symbols":["CREATED","UPDATED"]}`, "CREATED", []byte(`"CREATED"`))
+	testTextCodecPass(t, `{"type":"enum","name":"FooBarEvent","namespace":"com.foo.bar","symbols":["CREATED","UPDATED"]}`, createdEnum, []byte(`"CREATED"`))
 	// union with enum
-	testTextCodecPass(t, `["null",{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}]`, map[string]string{"FooBarEvent": "CREATED"}, []byte(`{"FooBarEvent":"CREATED"}`))
+	testTextCodecPass(t, `["null",{"type":"enum","name":"FooBarEvent","symbols":["CREATED","UPDATED"]}]`, &createdEnum, []byte(`{"FooBarEvent":"CREATED"}`))
 	// FAIL: union with enum with namespace: cannot determine codec: "FooBarEvent"
-	// testTextCodecPass(t, `["null",{"type":"enum","name":"FooBarEvent","namespace":"com.foo.bar","symbols":["CREATED","UPDATED"]}]`, Union("FooBarEvent", "CREATED"), []byte(`{"FooBarEvent":"CREATED"}`))
+	//testTextCodecPass(t, `["null",{"type":"enum","name":"FooBarEvent","namespace":"com.foo.bar","symbols":["CREATED","UPDATED"]}]`, &createdEnum, []byte(`{"FooBarEvent":"CREATED"}`))
 	// conclusion, union is not handling namespaces correctly
 	// try union with record instead of enum (records and enums both have namespaces)
 	// get a basic record going

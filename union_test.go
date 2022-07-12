@@ -10,16 +10,10 @@
 package goavro
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"testing"
 )
-
-func TestSchemaUnion(t *testing.T) {
-	testSchemaInvalid(t, `[{"type":"enum","name":"e1","symbols":["alpha","bravo"]},"e1"]`, "Union item 2 ought to be unique type")
-	testSchemaInvalid(t, `[{"type":"enum","name":"com.example.one","symbols":["red","green","blue"]},{"type":"enum","name":"one","namespace":"com.example","symbols":["dog","cat"]}]`, "Union item 2 ought to be unique type")
-}
 
 type colors struct {
 	val string
@@ -92,67 +86,6 @@ func TestUnionWithMap(t *testing.T) {
 
 	heMap := map[string]interface{}{"He": "Helium"}
 	testBinaryCodecPass(t, `["null",{"type":"map","values":"string"}]`, &heMap, []byte("\x02\x02\x04He\x0cHelium\x00"))
-}
-
-func TestUnionMapRecordFitsInRecord(t *testing.T) {
-	// union value may be either map or a record
-	codec, err := NewCodec(`["null",{"type":"map","values":"double"},{"type":"record","name":"com.example.record","fields":[{"name":"field1","type":"int"},{"name":"field2","type":"float"}]}]`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// the provided datum value could be encoded by either the map or the record
-	// schemas above
-	datum := map[string]interface{}{
-		"field1": 3,
-		"field2": 3.5,
-	}
-	datumIn := datum
-
-	buf, err := codec.BinaryFromNative(nil, datumIn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(buf, []byte{
-		0x04,                   // prefer record (union item 2) over map (union item 1)
-		0x06,                   // field1 == 3
-		0x00, 0x00, 0x60, 0x40, // field2 == 3.5
-	}) {
-		t.Errorf("GOT: %#v; WANT: %#v", buf, []byte{byte(2)})
-	}
-
-	// round trip
-	datumOut, buf, err := codec.NativeFromBinary(buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual, expected := len(buf), 0; actual != expected {
-		t.Errorf("GOT: %#v; WANT: %#v", actual, expected)
-	}
-
-	datumOutMap, ok := datumOut.(map[string]interface{})
-	if !ok {
-		t.Fatalf("GOT: %#v; WANT: %#v", ok, false)
-	}
-	if actual, expected := len(datumOutMap), 1; actual != expected {
-		t.Fatalf("GOT: %#v; WANT: %#v", actual, expected)
-	}
-	datumValue, ok := datumOutMap["com.example.record"]
-	if !ok {
-		t.Fatalf("GOT: %#v; WANT: %#v", datumOutMap, "have `com.example.record` key")
-	}
-	datumValueMap, ok := datumValue.(map[string]interface{})
-	if !ok {
-		t.Errorf("GOT: %#v; WANT: %#v", ok, true)
-	}
-	if actual, expected := len(datumValueMap), len(datum); actual != expected {
-		t.Errorf("GOT: %#v; WANT: %#v", actual, expected)
-	}
-	for k, v := range datum {
-		if actual, expected := fmt.Sprintf("%v", datumValueMap[k]), fmt.Sprintf("%v", v); actual != expected {
-			t.Errorf("GOT: %#v; WANT: %#v", actual, expected)
-		}
-	}
 }
 
 func TestUnionRecordFieldWhenNull(t *testing.T) {

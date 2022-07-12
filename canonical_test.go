@@ -93,12 +93,8 @@ func TestCanonicalSchema(t *testing.T) {
 			},
 		*/
 		{
-			Schema:    `[ "int"  ]`,
-			Canonical: `["int"]`,
-		},
-		{
-			Schema:    `[ "int" , {"type":"boolean"} ]`,
-			Canonical: `["int","boolean"]`,
+			Schema:    `[ "null" , {"type":"boolean"} ]`,
+			Canonical: `["null","boolean"]`,
 		},
 
 		// The following 7 test cases differ from the reference implementation since goavro doesn't
@@ -192,8 +188,8 @@ func TestCanonicalSchema(t *testing.T) {
 		},
 		{
 			Schema: `  {"name":"PigValue","type":"record",
-			   "fields":[{"name":"value", "type":["null", "int", "long", "PigValue"]}]}`,
-			Canonical: `{"name":"PigValue","type":"record","fields":[{"name":"value","type":["null","int","long","PigValue"]}]}`,
+			   "fields":[{"name":"value", "type":["null", "PigValue"]}]}`,
+			Canonical: `{"name":"PigValue","type":"record","fields":[{"name":"value","type":["null","PigValue"]}]}`,
 		},
 
 		// [INTEGERS] Eliminate quotes around and any leading zeros in front of

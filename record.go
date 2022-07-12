@@ -109,7 +109,7 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 				// When codec is union, then default value ought to encode using
 				// first schema in union.  NOTE: To support a null default
 				// value, the string literal "null" must be coerced to a `nil`
-				if defaultValue == "null" {
+				if defaultValue == "null" || defaultValue == nil {
 					defaultValue = nil
 				} else {
 					return nil, fmt.Errorf("unions with non null default values are not supported")
@@ -144,6 +144,7 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			// NOTE: If field value was not specified in map, then set
 			// fieldValue to its default value (which may or may not have been
 			// specified).
+			// TODO: the field set here is not a pointer type - need to figure out why
 			fieldValue, ok := valueMap[fieldName]
 			if !ok {
 				if fieldValue, ok = defaultValueFromName[fieldName]; !ok {
@@ -170,7 +171,12 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot decode binary record %q field %q: %s", c.typeName, name, err)
 			}
-			recordMap[name] = value
+			if fieldCodec.typeName.fullName == "union" {
+				recordMap[name] = &value
+
+			} else {
+				recordMap[name] = value
+			}
 		}
 		return recordMap, buf, nil
 	}
@@ -204,11 +210,17 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		// NOTE: Ensure only schema defined field names are encoded; and if
 		// missing in datum, either use the provided field default value or
 		// return an error.
-		sourceMap, ok := datum.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("cannot encode textual record %q: expected map[string]interface{}; received: %T", c.typeName, datum)
-		}
 		destMap := make(map[string]interface{}, len(codecFromIndex))
+
+		isNil := datum == nil
+		sourceMap, ok := datum.(map[string]interface{})
+		if !ok && !isNil {
+			return nil, fmt.Errorf("cannot encode textual record %q: expected map[string]interface{}; received: %T", c.typeName, datum)
+		} else if isNil {
+			//https://birdco.atlassian.net/browse/ENG-11238
+			return nullTextualFromNative(buf, datum)
+			//return genericMapTextEncoder(buf, destMap, nil, codecFromFieldName)
+		}
 		for fieldName := range codecFromFieldName {
 			fieldValue, ok := sourceMap[fieldName]
 			if !ok {

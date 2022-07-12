@@ -132,6 +132,17 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 	}
 
 	if actual != expected {
+		// this is silly - but for certain types - specifically the logical binary types (math/big.Rat, etc)
+		// deepcopy does not work and we end up with false false
+
+		originalExpected := fmt.Sprintf("%v", datum)
+
+		if actual != originalExpected {
+			t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+		} else {
+			return
+		}
+
 		expectedBytes, err := json.Marshal(concreteDatum)
 		if err != nil {
 			t.Error(err)

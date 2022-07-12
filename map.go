@@ -207,7 +207,12 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 			return nil, nil, fmt.Errorf("%s for key: %q", err, key)
 		}
 		// set map value for key
-		mapValues[key] = value
+		if fieldCodec.typeName.fullName == "union" {
+			mapValues[key] = &value
+
+		} else {
+			mapValues[key] = value
+		}
 		// either comma or closing curly brace
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
 			return nil, nil, io.ErrShortBuffer
@@ -261,12 +266,21 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 			return nil, err
 		}
 		buf = append(buf, ':')
+
 		// Encode value
-		buf, err = fieldCodec.textualFromNative(buf, value)
+		unwrapped := reflect.Indirect(reflect.ValueOf(value))
+
+		if fieldCodec.typeName.fullName == "union" && unwrapped.IsNil() {
+			buf, err = nullTextualFromNative(buf, unwrapped.Interface())
+		} else {
+			// Encode value
+			buf, err = fieldCodec.textualFromNative(buf, value)
+		}
 		if err != nil {
 			// field was specified in datum; therefore its value was invalid
 			return nil, fmt.Errorf("cannot encode textual map: value for %q does not match its schema: %s", key, err)
 		}
+
 		buf = append(buf, ',')
 	}
 

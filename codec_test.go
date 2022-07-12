@@ -65,14 +65,6 @@ func TestCodecRabin(t *testing.T) {
 			Rabin:  0x8f014872634503c7,
 		},
 		{
-			Schema: `[ "int"  ]`,
-			Rabin:  0xb763638a48b2fb03,
-		},
-		{
-			Schema: `[ "int" , {"type":"boolean"} ]`,
-			Rabin:  0x4ad63578080c1602,
-		},
-		{
 			Schema: `{"fields":[], "type":"record", "name":"foo"}`,
 			Rabin:  0xbd0c50c84319be7e,
 		},
@@ -129,8 +121,8 @@ func TestCodecRabin(t *testing.T) {
 			Rabin:  0x86ce965d92864572,
 		},
 		{
-			Schema: `{"name":"PigValue","type":"record", "fields":[{"name":"value", "type":["null", "int", "long", "PigValue"]}]}`,
-			Rabin:  0xe795dc6656b7e95b,
+			Schema: `{"name":"PigValue","type":"record", "fields":[{"name":"value", "type":["null", "PigValue"]}]}`,
+			Rabin:  0x197366769a5be293,
 		},
 	}
 

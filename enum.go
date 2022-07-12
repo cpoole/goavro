@@ -98,8 +98,13 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 		return nil, nil, fmt.Errorf("cannot decode textual enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
 	}
 	c.textualFromNative = func(buf []byte, datum interface{}) ([]byte, error) {
-		someString, ok := datum.(string)
-		if !ok {
+		someString := ""
+		switch v := datum.(type) {
+		case string:
+			someString = v
+		case avroEnum:
+			someString = v.Str()
+		default:
 			return nil, fmt.Errorf("cannot encode textual enum %q: expected string; received: %T", c.typeName, datum)
 		}
 		for _, symbol := range symbols {

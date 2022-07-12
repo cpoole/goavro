@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -108,7 +109,10 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 	var datumString string
 	if reflect.ValueOf(datum).Kind() == reflect.Ptr {
 		dereferenced := reflect.ValueOf(datum).Elem().Interface()
-		typeStr := reflect.TypeOf(dereferenced).String()
+		derefType := reflect.TypeOf(dereferenced)
+		typeStr := derefType.String()
+		parts := strings.Split(typeStr, ".")
+		typeStr = parts[len(parts)-1]
 		datumType = isMap
 		datumMap = map[string]interface{}{
 			typeStr: dereferenced,
@@ -137,8 +141,11 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 			datumSlice = v
 			datumType = isSlice
 		case map[string]interface{}:
-			datumMap = v
 			datumType = isMap
+			datumMap = v
+		case avroEnum:
+			datumType = isString
+			datumString = v.Str()
 		}
 	}
 
@@ -212,9 +219,9 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 			decodedLookupKey := key
 			if key == "int" && datumValue.(int) > math.MaxInt32 {
 				decodedLookupKey = "long"
-			} else if (key == "float64") {
+			} else if key == "float64" {
 				decodedLookupKey = "float"
-			} else if (key == "double") {
+			} else if key == "double" {
 				decodedLookupKey = "float64"
 			}
 
@@ -222,6 +229,16 @@ func toNativeAndCompare(t *testing.T, schema string, datum interface{}, encoded 
 			if !ok {
 				t.Fatalf("map comparison: decoded missing key: %q: Actual: %v; Expected: %v", key, decodedMap, datumMap)
 			}
+
+			// enums need to be compared in a special way - check interface and call the Str method for comparison
+			enumType, ok := datumValue.(avroEnum)
+			if ok {
+				if actual, expected := fmt.Sprintf("%v", decodedValue), fmt.Sprintf("%v", enumType.Str()); actual != expected {
+					t.Errorf("enum comparison: schema: %s; Datum: %v; Actual: %v; Expected: %v", schema, datum, decodedValue, enumType.Str())
+				}
+				return
+			}
+	
 			if actual, expected := fmt.Sprintf("%v", decodedValue), fmt.Sprintf("%v", datumValue); actual != expected {
 				t.Errorf("map comparison: values differ for key: %q; Actual: %v; Expected: %v", key, actual, expected)
 			}

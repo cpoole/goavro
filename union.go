@@ -94,7 +94,13 @@ func nativeFromBinary(cr *codecInfo) func(buf []byte) (interface{}, []byte, erro
 			return nil, buf, nil
 		}
 		// Single value union values are returned as a pointer type
-		return decoded, buf, nil
+		// the above c.nativeFromBinary did not return a pointer type. The interface holds
+		// a concrete type. We now need to get a pointer to the value held by the interface
+
+		// create a new pointer to the concrete type
+		ptrTyp := reflect.New(reflect.TypeOf(decoded))
+		ptrTyp.Elem().Set(reflect.ValueOf(decoded))
+		return ptrTyp.Interface(), buf, nil
 	}
 }
 func binaryFromNative(cr *codecInfo) func(buf []byte, datum interface{}) ([]byte, error) {

@@ -108,7 +108,34 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 
 	datumCopy := deepcopy.Copy(datum)
 
+	if reflect.DeepEqual(value, datumCopy) {
+		return
+	}
+
 	actual := fmt.Sprintf("%v", value)
+
+	if value != nil {
+		if reflect.TypeOf(value).Kind() == reflect.Ptr {
+			var concreteValue interface{}
+			if reflect.ValueOf(value).IsNil() {
+				concreteValue = nil
+			} else {
+				concreteValue = reflect.Indirect(reflect.ValueOf(value)).Interface()
+			}
+
+			actual = fmt.Sprintf("%v", concreteValue)
+		} else if reflect.TypeOf(value).Kind() == reflect.Map {
+			concreteValue := make(map[string]interface{})
+			for k, v := range value.(map[string]interface{}) {
+				if v != nil && reflect.TypeOf(v).Kind() == reflect.Ptr {
+					concreteValue[k] = reflect.Indirect(reflect.ValueOf(v)).Interface()
+				} else {
+					concreteValue[k] = v
+				}
+			}
+			actual = fmt.Sprintf("%v", concreteValue)
+		}
+	}
 
 	var concreteDatum interface{}
 
@@ -120,6 +147,18 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 		} else {
 			concreteDatum = reflect.Indirect(reflect.ValueOf(datumCopy)).Interface()
 		}
+	} else if reflect.TypeOf(datumCopy).Kind() == reflect.Map {
+		// for maps we must iterate through the keys un unwrap the pointer values to perform a comparison
+		unwrapped := make(map[string]interface{})
+		for k, v := range datumCopy.(map[string]interface{}) {
+			if v != nil && reflect.TypeOf(v).Kind() == reflect.Ptr {
+				unwrapped[k] = reflect.Indirect(reflect.ValueOf(v)).Interface()
+			} else {
+				unwrapped[k] = v
+			}
+		}
+		concreteDatum = unwrapped
+
 	} else {
 		concreteDatum = reflect.Indirect(reflect.ValueOf(datumCopy)).Interface()
 	}

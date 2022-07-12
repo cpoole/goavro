@@ -171,12 +171,7 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot decode binary record %q field %q: %s", c.typeName, name, err)
 			}
-			if fieldCodec.typeName.fullName == "union" {
-				recordMap[name] = &value
-
-			} else {
-				recordMap[name] = value
-			}
+			recordMap[name] = value
 		}
 		return recordMap, buf, nil
 	}

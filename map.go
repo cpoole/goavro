@@ -268,10 +268,14 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 		buf = append(buf, ':')
 
 		// Encode value
-		unwrapped := reflect.Indirect(reflect.ValueOf(value))
+		rVal := reflect.ValueOf(value)
 
-		if fieldCodec.typeName.fullName == "union" && unwrapped.IsNil() {
-			buf, err = nullTextualFromNative(buf, unwrapped.Interface())
+		if fieldCodec.typeName.fullName == "union" && rVal.Kind() == reflect.Ptr {
+			if rVal.IsNil() {
+				buf, err = nullTextualFromNative(buf, nil)
+			} else {
+				buf, err = fieldCodec.textualFromNative(buf, value)
+			}
 		} else {
 			// Encode value
 			buf, err = fieldCodec.textualFromNative(buf, value)
